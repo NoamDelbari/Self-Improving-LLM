@@ -1,0 +1,11 @@
+.venv/
+data/*
+models/*
+configs/*
+notebooks/*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
