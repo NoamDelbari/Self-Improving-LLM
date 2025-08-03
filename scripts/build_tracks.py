@@ -12,6 +12,14 @@ Writes:
 """
 import json, argparse, pathlib, time
 import dotenv, os, openai, tqdm
+
+# ---- at the top, after imports ----
+LABEL_LOOKUP = {}
+with open("data/sample_train.jsonl", encoding="utf-8") as f:
+    for row in map(json.loads, f):
+        LABEL_LOOKUP[row["question"]] = 1 if row["answer"] else 0
+# -----------------------------------
+
 dotenv.load_dotenv()
 
 client = openai.OpenAI()        # uses OPENAI_API_KEY from env
@@ -40,20 +48,35 @@ def call_teacher(model, question, clarif, temp):
 def main(raw, out, model, temp, pause):
     out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
     A = open(out/"train_A.jsonl", "w"); B = open(out/"train_B.jsonl", "w")
-
+    bad = total = 0
     for line in tqdm.tqdm(open(raw, encoding="utf-8")):
         row = json.loads(line)
-        cot, teacher_ans = call_teacher(model, row["question"],
-                                        row["student_draft"], temp)
-        gold = row["gold_answer"]
+        total += 1
+
+        cot, teacher_ans = call_teacher(model,
+                                        row["question"],
+                                        row["student_draft"],
+                                        temp)
+
+        # *** true label from lookup ***
+        gold = LABEL_LOOKUP.get(row["question"])
+        if gold is None:
+            print("!! question not found in label table"); continue
+
         if teacher_ans != gold:
-            print("⚠ teacher disagrees with gold label")
+            bad += 1
+            print("!! teacher disagrees with gold label")
+            # you may 'continue' here to drop bad rows from Track B
+
+        # write Track A
         json.dump({"question": row["question"], "answer": gold}, A); A.write("\n")
+        # write Track B
         full = row["question"] + "\n\nThought:\n" + cot
         json.dump({"question": full, "answer": gold}, B); B.write("\n")
-        time.sleep(pause)          # gentle rate-limit
+        time.sleep(pause)
 
     A.close(); B.close()
+    print(f"Mismatches: {bad}/{total}  =  {bad/total:.1%}")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
