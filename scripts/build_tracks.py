@@ -38,43 +38,80 @@ dotenv.load_dotenv()
 
 client = openai.OpenAI()        # uses OPENAI_API_KEY from env
 
-PROMPT = """You are a precise reasoning engine.
-Question: {q}
+import re, time
 
-Student clarifying questions:
-{cl}
+# ------------------------------------------------------------------------
+# Constants (tweak as you like)
+GPT4_MODEL        = "gpt-4o-mini"   # or "gpt-4o" for higher accuracy
+GPT4_MAX_TOKENS   = 400             # keeps cost predictable
+GPT4_TEMPERATURE  = 0               # deterministic answers
+# ------------------------------------------------------------------------
 
-Answer step by step; finish with 'Final: Yes' or 'Final: No'."""
+SYSTEM_PROMPT = """You are an expert teacher helping a student AI model learn to reason through
+complex yes/no questions. Your role is to:
 
-# --------------------------------------------------------------------
-def call_teacher(model, question, clarif, temp):
-    prompt = PROMPT.format(q=question, cl=clarif)
-    rsp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temp,
-    )
+1. Analyze the student's draft answer and clarifying questions
+2. Provide clear, step-by-step reasoning (2-4 concise steps maximum)
+3. Address the student's specific concerns when they raise valid points
+4. Keep your reasoning focused and under 200 words
+5. Always conclude with a confident final Yes/No answer
+
+Your reasoning should be educational but concise - the student model needs to learn from clear,
+digestible explanations."""
+
+# ------------------------------------------------------------------------
+def call_teacher(model, question, draft, temp, retries=0):
+    """
+    Ask GPT-4(o) and return (cot_text, yes_or_no_int).
+    If parsing fails after all retries → returns (None, None).
+    """
+
+    user_prompt = f"""Question: {question}
+
+                    Student's draft attempt: {draft}
+
+                    Please provide step-by-step reasoning and your final Yes/No answer."""
+
+    try:
+        rsp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": user_prompt},
+            ],
+            max_tokens=GPT4_MAX_TOKENS,
+            temperature=GPT4_TEMPERATURE,
+        )
+    except openai.OpenAIError as e:
+        # retry on transient errors
+        if retries:
+            time.sleep(1); return call_teacher(model, question, draft, temp, retries - 1)
+        print("[WARN] API failure:", e); return None, None
+
     txt = rsp.choices[0].message.content
-    cot, final = txt.rsplit("Final:", 1)          # final = " Yes" / " No"
-    final = final.strip().lower()                 # "yes"  / "no"
 
-    if final.startswith("yes"):
-        ans = 1
-    elif final.startswith("no"):
-        ans = 0
-    else:
-        # fallback: look anywhere in the last line of the whole reply
-        last = txt.strip().splitlines()[-1].lower()
-        if last.startswith("yes"):
-            ans = 1
-        elif last.startswith("no"):
-            ans = 0
-        else:
-            print("!!! could not parse teacher final:", last[:80])
-            return None, None
+    # ---------- split & parse ------------------------------------------
+    cot, tail = txt.rsplit("Final", 1) if "Final" in txt else (txt, "")
+    tail = tail.lower()
 
-    return cot.strip(), ans
+    if "yes" in tail:
+        return cot.strip(), 1
+    if "no" in tail:
+        return cot.strip(), 0
 
+    # Second-chance regex anywhere in last line
+    last = txt.strip().splitlines()[-1].lower()
+    m = re.search(r'\b(yes|no)\b', last)
+    if m:
+        return cot.strip(), 1 if m.group(1) == "yes" else 0
+
+    # Could not parse → retry / skip
+    if retries:
+        time.sleep(1); return call_teacher(model, question, draft, temp, retries - 1)
+
+    print("[WARN] unparseable reply, skipping.")
+    return None, None
+# ------------------------------------------------------------------------
 
 
 # ── NEW main() ────────────────────────────────────────────────────────────
@@ -99,14 +136,16 @@ def main(raw, out, model, temp, pause, no_clarif, tag):
         row = json.loads(line)
         total += 1
 
-        clarif = "" if no_clarif else row["student_draft"]
+                # choose draft text (empty if --no_clarif)
+        draft_text = "" if no_clarif else row["student_draft"]
 
         cot, teacher_ans = call_teacher(
             model=model,
             question=row["question"],
-            clarif=clarif,
+            draft=draft_text,     # <-- fixed
             temp=temp,
         )
+
 
         gold = LABEL_LOOKUP.get(norm(row["question"]))
         if gold is None: 
@@ -116,7 +155,7 @@ def main(raw, out, model, temp, pause, no_clarif, tag):
             print("\nQUESTION:", row['question'][:120])
             print("TEACHER  :", teacher_ans, "| GOLD :", gold)
             bad += 1
-            # continue        # <- uncomment to drop mismatched rows
+            continue        # <- uncomment to drop mismatched rows
 
         # Track A (always written; tiny, no harm)
         json.dump({"question": row["question"], "answer": gold}, A); A.write("\n")
