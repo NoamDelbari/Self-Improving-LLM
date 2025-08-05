@@ -1,4 +1,4 @@
-.venv/
+venv/
 models/*
 configs/*
 __pycache__/
@@ -10,4 +10,4 @@ __pycache__/
 *.pyz'.env' 
 =======
 *.pyz
->>>>>>> origin/main
+*.env
