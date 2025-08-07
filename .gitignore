@@ -6,8 +6,5 @@ __pycache__/
 *.pyo
 *.pyd
 *.pyw
-<<<<<<< HEAD
-*.pyz'.env' 
-=======
 *.pyz
-*.env
+.env
