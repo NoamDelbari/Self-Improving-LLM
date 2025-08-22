@@ -1,0 +1,14 @@
+{
+  "stage_1": {
+    "stage": "stage_1",
+    "status": "failed",
+    "error": "Unable to create tensor, you should probably activate truncation and/or padding with 'padding=True' 'truncation=True' to have batched tensors with the same length. Perhaps your features (`text` in this case) have excessive nesting (inputs type `list` where type `int` is expected).",
+    "dataset_size": 229
+  },
+  "stage_2": {
+    "stage": "stage_2",
+    "status": "failed",
+    "error": "Unable to create tensor, you should probably activate truncation and/or padding with 'padding=True' 'truncation=True' to have batched tensors with the same length. Perhaps your features (`text` in this case) have excessive nesting (inputs type `list` where type `int` is expected).",
+    "dataset_size": 229
+  }
+}

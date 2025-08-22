@@ -1,0 +1,21 @@
+{
+  "stage_1_emphasis": {
+    "stage": "stage_1_emphasis",
+    "status": "failed",
+    "error": "Unable to create tensor, you should probably activate truncation and/or padding with 'padding=True' 'truncation=True' to have batched tensors with the same length. Perhaps your features (`text` in this case) have excessive nesting (inputs type `list` where type `int` is expected).",
+    "dataset_size": 174,
+    "emphasis_multiplier": 2.0
+  },
+  "stage_2_emphasis": {
+    "stage": "stage_2_emphasis",
+    "status": "failed",
+    "error": "Unable to create tensor, you should probably activate truncation and/or padding with 'padding=True' 'truncation=True' to have batched tensors with the same length. Perhaps your features (`text` in this case) have excessive nesting (inputs type `list` where type `int` is expected).",
+    "dataset_size": 174,
+    "emphasis_multiplier": 2.5
+  },
+  "overall_emphasis_stats": {
+    "total_emphasized_tokens": 0,
+    "stage_1_emphasis_ratio": 0,
+    "stage_2_emphasis_ratio": 0
+  }
+}
